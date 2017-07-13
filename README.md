@@ -7,7 +7,7 @@ Regular expressions for various sample type
 
 ### Regular expression
 #### ^IRCR_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9]|_T0[1-9]_P0)_(RSq)+
-![Alt text](C:\Users\quark\Documents\Bioinformatics\regexper1.png)
+![Alt text](https://user-images.githubusercontent.com/24261566/28172937-f08f8edc-6827-11e7-88fd-703e7a9ce168.png)
 
 ## Reference of Glioma Scan sampleList
 #### "IRCR_GBM14_591_T01_BR1S1_P10_GS", "IRCR_BT16_1141_T_GS", "IRCR_BT16_1036_T04_GS", "IRCR_GBM14_593_P5_GS", "IRCR_GBM14_593_BR1_P0_GS", "HGF_IRCR_GBM13_210_BR1_P9_GS", "IRCR_GBM14_534_SP6_GS", "SNU_BT17_008_T_GS"
