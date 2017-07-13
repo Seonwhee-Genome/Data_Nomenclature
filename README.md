@@ -17,7 +17,7 @@ Regular expressions for various sample type
 #### ^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(_B|_T|_T0[1-9])_(GS)+
 #### ^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(GS)+
 #### ^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(_BR[1-9]|_BR[1-9]S[0-9])(|_P[0-9]{1,2}|_SP[0-9]{1,2})_(GS)+
-![Alt text](C:\Users\quark\Documents\Bioinformatics\regexper2.png)
+![Alt text](https://user-images.githubusercontent.com/24261566/28172920-e623b72a-6827-11e7-957a-6f6da1c7e0bb.png)
 
 #### ^S([0-9]{2})([0-9]{5,})(|_T)_(GS)+
 #### ^NS([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(GS)+
