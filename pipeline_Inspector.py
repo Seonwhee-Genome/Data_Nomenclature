@@ -5,8 +5,11 @@ import logging
 import logging.handlers
 import subprocess as sp
 from glob import glob
+from operator import methodcaller
+
 
 class Logger(object):
+
     def __init__(self):
         self.Save_file_path = '/home/jsgene/JK1/NGS/exec_history/'  # log files that indicate execution time
         self.JSON_path = '/data1/home/jsgene/JSONS/'
@@ -120,9 +123,11 @@ class Inspector(object):
         CN.initialize_setting(self.groupName)
         CN.Select_TODO_list()
 
-    def Sample_naming_inspection(self, PATH, matchingTarget):
+    def Sample_naming_inspection(self, matchingList):
+
         standards = []
-        print('matchingTarget', matchingTarget)
+        needToRename = []
+        print('matchingTarget', matchingList)
 
         if self.type == "GS":
             standard1 = re.compile("^S([0-9]{2})([0-9]{5,})(|_T)_(GS)+")
@@ -136,7 +141,7 @@ class Inspector(object):
             standard1 = re.compile("^IRCR_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9]|_T0[1-9]_P0)_(RSq)+")
             standards = [standard1]
         elif self.type == "WXS":
-            standard1 = re.compile("^S([0-9]{2})([0-9]{5,})(|_T)_(SS|TS)+")
+            standard1 = re.compile("^S([0-9]{2})([0-9]{5,})_T_(SS|TS)+")
             standard2 = re.compile("^NS([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(SS|TS)+")
             standard3 = re.compile("^NS([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(_BR[1-9]|_BR[1-9]S[0-9])(|_P[0-9]{1,2}|_SP[0-9]{1,2})_(SS|TS)+")
             standard4 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(_B|_T|_T0[1-9])_(SS|TS)+")
@@ -145,13 +150,7 @@ class Inspector(object):
             standards = [standard1, standard2, standard3, standard4, standard5, standard6]
 
         for ref in standards:
-            Judge = ref.match(matchingTarget)
-            if Judge == None:
-                print("%s does not obey the IRCR naming rule" % (matchingTarget))
-                needToRename = (PATH, matchingTarget)
-            elif Judge != None:
-                print("%s obeys the IRCR naming rule" % (matchingTarget))
-                needToRename = ()
+            needToRename = list(filter(lambda x: ref.match(x) == None, matchingList)) + needToRename
         return needToRename
 
 
@@ -162,17 +161,15 @@ class Inspector(object):
             if sampleGroup.split(".")[-1] == "html":
                 continue
             else:
-                matchingFiles = glob("%s/*" % (sampleGroup))
-                for matchingFile in matchingFiles:
-                    preprocessList = matchingFile.split("/")
-                    matchingTarget = preprocessList[-1]
-                    path = "/".join(preprocessList[:-1]) + "/"
+                matchingFiles = glob("%s/*" % (sampleGroup))  # e.g : ['/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq/IRCR_BT16_1021_02_RSq_splice.bam', '/EQL8/pipeline/SGI20170718/IRCR_BT16_1141_RSq/IRCR_BT16_1141_RSq_splice.dedup.bai']
 
-                    unmatched_Target = self.Sample_naming_inspection(path, matchingTarget)
-                    if len(unmatched_Target) == 2:
-                        unmatchedList.append(unmatched_Target)
-                    else:
-                        continue
+                FirstFilter = list(map(methodcaller("split", "/"), matchingFiles)) # e.g : [['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq', 'IRCR_BT16_1021_02_RSq_splice.bam'], ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1141_RSq', 'IRCR_BT16_1141_RSq_splice.dedup.bai']]
+                SecondFilter = list(map(lambda x: x[-1], FirstFilter)) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam', 'IRCR_BT16_1141_RSq_splice.dedup.bai']
+                ThirdFilter = self.Sample_naming_inspection(SecondFilter) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam']
+
+                for matchingFile in matchingFiles:
+                    if True in list(map(lambda x: x in matchingFile, ThirdFilter)):
+                        unmatchedList.append(matchingFile)
 
 
         unmatchedList = list(set(unmatchedList))
@@ -193,6 +190,10 @@ class Inspector(object):
                 os.system('mv %s %s' % (PATH + NAME, PATH + newNAME))
             else:
                 print("%s is not mistake1" %(NAME))
+
+
+
+
 
     def read_DAT(self, isPAIR=True):
         VEP = GS_variant_effect_prediction()
