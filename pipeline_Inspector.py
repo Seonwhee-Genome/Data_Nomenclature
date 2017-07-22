@@ -90,11 +90,14 @@ class Inspector(object):
             self.groupName = "GS_" + group
             self.basedir = '/EQL7/pipeline/'
             self.bam_dir = '%s%s/' % (self.basedir, self.groupName)
+            self.fastq_link = '/EQL2/%s/WXS/fastq/link/' %(self.groupName)
         elif type == "RSq":
             self.groupName = "SGI" + group + "_rsq2"
             self.basedir = '/EQL8/pipeline/'
             self.tdf_dir = '%s%sexpr/' % (self.basedir, self.groupName)
             self.bam_dir = '%s%smut/' % (self.basedir, self.groupName)
+            self.fastq_link = '/EQL2/SGI_%s/RNASeq/fastq/link/' %(group)
+            
 
         self.Pair = '_pair_filter_vep.dat'
         self.Single = '_single_filter_vep.dat'
@@ -155,45 +158,58 @@ class Inspector(object):
 
 
     def Renaming_Files(self):
-        sampleNames = glob("%s/*" % (self.tdf_dir))
+        sampleNames = glob("%s/*" % (self.bam_dir))
+        unmatchedDirs = []
         unmatchedList = []
+        ## At first, upper dir names are changed
         for sampleGroup in sampleNames:
             if sampleGroup.split(".")[-1] == "html":
-                continue
+                FirstFilter = sampleGroup.split("/")  # e.g : ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq.html']
+                SecondFilter = FirstFilter[-1]  # e.g : ['IRCR_BT16_1021_02_RSq.html']
+                ThirdFilter = self.Sample_naming_inspection([SecondFilter])  # e.g : ['IRCR_BT16_1021_02_RSq.html']
+                MasterLink1 = '%s%s.1.fq.gz'%(self.fastq_link, SecondFilter[:-5])# e.g : [/EQL2/SGI_20170718/RNASeq/fastq/link/IRCR_BT16_1021_02_RSq.1.fq.gz]
+                MasterLink2 = '%s%s.2.fq.gz'%(self.fastq_link, SecondFilter[:-5])
+
+                if len(ThirdFilter)!=0:
+                    unmatchedDirs.append(sampleGroup)  # e.g : ['/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq.html']
+                    unmatchedDirs.append(sampleGroup[:-5]) # e.g : [..., '/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq']
+                    unmatchedDirs.append(MasterLink1) 
+                    unmatchedDirs.append(MasterLink2)
             else:
-                matchingFiles = glob("%s/*" % (sampleGroup))  # e.g : ['/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq/IRCR_BT16_1021_02_RSq_splice.bam', '/EQL8/pipeline/SGI20170718/IRCR_BT16_1141_RSq/IRCR_BT16_1141_RSq_splice.dedup.bai']
+                continue
+        #unmatchedDirs = list(set(unmatchedDirs))
+        #print(unmatchedDirs)
+        #self.correcting_naming_mistakes(unmatchedDirs)
 
-                FirstFilter = list(map(methodcaller("split", "/"), matchingFiles)) # e.g : [['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq', 'IRCR_BT16_1021_02_RSq_splice.bam'], ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1141_RSq', 'IRCR_BT16_1141_RSq_splice.dedup.bai']]
-                SecondFilter = list(map(lambda x: x[-1], FirstFilter)) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam', 'IRCR_BT16_1141_RSq_splice.dedup.bai']
-                ThirdFilter = self.Sample_naming_inspection(SecondFilter) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam']
+        ## Then, sub dir names and file names are changed
+        for sampleGroup in sampleNames:
 
-                for matchingFile in matchingFiles:
-                    if True in list(map(lambda x: x in matchingFile, ThirdFilter)):
-                        unmatchedList.append(matchingFile)
+            matchingFiles = glob("%s/*" % (sampleGroup))  # e.g : ['/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq/IRCR_BT16_1021_02_RSq_splice.bam', '/EQL8/pipeline/SGI20170718/IRCR_BT16_1141_RSq/IRCR_BT16_1141_RSq_splice.dedup.bai']
 
+            FirstFilter = list(map(methodcaller("split", "/"), matchingFiles)) # e.g : [['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq', 'IRCR_BT16_1021_02_RSq_splice.bam'], ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1141_RSq', 'IRCR_BT16_1141_RSq_splice.dedup.bai']]
+            SecondFilter = list(map(lambda x: x[-1], FirstFilter)) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam', 'IRCR_BT16_1141_RSq_splice.dedup.bai']
+            ThirdFilter = self.Sample_naming_inspection(SecondFilter) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam']
+
+            for matchingFile in matchingFiles:
+                if True in list(map(lambda x: x in matchingFile, ThirdFilter)):
+                    unmatchedList.append(matchingFile)
 
         unmatchedList = list(set(unmatchedList))
         print(unmatchedList)
         self.correcting_naming_mistakes(unmatchedList)
 
-        #for NAME in unmatchedList:
-
-            #print(NAME)
-            # os.system('mv %s %s' %(path+NAME, path+new_name))
     def correcting_naming_mistakes(self, inputList):
         mistake1 = re.compile("^IRCR_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(_0[1-9]|_0[1-9]_P0)_([A-Z]{2,3})+")
-        for PATH, NAME in inputList:
-            if mistake1.match(NAME) != None:
-                print("%s is mistake1" %(NAME))
-                newNAME = NAME.replace("_0", "_T0")
-                print("and now changed into %s" %(newNAME))
-                os.system('mv %s %s' % (PATH + NAME, PATH + newNAME))
-            else:
-                print("%s is not mistake1" %(NAME))
+        for NAME in inputList:
+            newNAME = NAME.replace("_0", "_T0")
+            print("and now changed into %s" % (newNAME))
+            os.system('mv %s %s' % (NAME, newNAME))
+            #if mistake1.match(NAME) != None:
+            #    print("%s is mistake1" %(NAME))
 
-
-
-
+                #os.system('mv %s %s' % (PATH + NAME, PATH + newNAME))
+            #else:
+            #    print("%s is not mistake1" %(NAME))
 
     def read_DAT(self, isPAIR=True):
         VEP = GS_variant_effect_prediction()
@@ -235,6 +251,34 @@ class Inspector(object):
 
 #    def sequence_Quality(self):
 
+class File_manager(object):
+    import os, sys
+    import subprocess
+    def from_EQL_to_Storage(self, type):
+        departureHost = "jsgene@119.86.100.106"
+        departure = "/EQL8/pipeline/SGI20150709_rsq2expr/"
+        destinationHost = "smcbi@119.4.212.148"
+        destination = "/media/backup"
+        if type == "GS":
+            destination = destination + "/WXS_pipeline/"
+        elif type == "RSq":
+            destination = destination + "/RNASeq_pipeline/"
+
+        cmd1 = 'sshpass -p smcbi '
+        cmd2 = 'rsync -avXz --progress %s %s:%s' % (departure, destinationHost, destination)
+
+        #cmd = cmd1 + cmd2
+        cmd3 = "SSHPASS=smcbi"
+        cmd4 = "sshpass -e sftp -oBatchMode=no -b - %s <<EOF" %(destinationHost)
+        cmd5 = "put %s" %(departure)
+        cmd6 = "bye"
+        cmd7 = "EOF"
+        print(cmd)
+        os.system(cmd)
+
+
 if __name__=="__main__":
     ins = Inspector("20170718", "RSq")
     ins.Renaming_Files()
+    #mgr = File_manager()
+    #mgr.from_EQL_to_Storage("RSq")
