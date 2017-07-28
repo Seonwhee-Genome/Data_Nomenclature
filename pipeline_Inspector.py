@@ -4,6 +4,9 @@ import json, pickle
 import logging
 import logging.handlers
 import subprocess as sp
+
+import pandas as pd
+from GS_variants import GS_variant_effect_prediction
 from glob import glob
 from operator import methodcaller
 
@@ -97,7 +100,6 @@ class Inspector(object):
             self.tdf_dir = '%s%sexpr/' % (self.basedir, self.groupName)
             self.bam_dir = '%s%smut/' % (self.basedir, self.groupName)
             self.fastq_link = '/EQL2/SGI_%s/RNASeq/fastq/link/' %(group)
-            
 
         self.Pair = '_pair_filter_vep.dat'
         self.Single = '_single_filter_vep.dat'
@@ -130,15 +132,14 @@ class Inspector(object):
 
         standards = []
         needToRename = []
-        print('matchingTarget', matchingList)
 
         if self.type == "GS":
-            standard1 = re.compile("^S([0-9]{2})([0-9]{5,})(|_T)_(GS)+")
+            standard1 = re.compile("^S([0-9]{2})([0-9]{5,})(_T)_(GS)+")
             standard2 = re.compile("^NS([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(GS)+")
             standard3 = re.compile("^NS([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(_BR[1-9]|_BR[1-9]S[0-9])(|_P[0-9]{1,2}|_SP[0-9]{1,2})_(GS)+")
             standard4 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(_B|_T|_T0[1-9])_(GS)+")
-            standard5 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(GS)+")
-            standard6 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9])(_BR[1-9]|_BR[1-9]S[0-9])(|_P[0-9]{1,2}|_SP[0-9]{1,2})_(GS)+")
+            standard5 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T|_T0[1-9])(|_P[0-9]{1,2}|_S[0-9]|_SP[0-9]{1,2})_(GS)+")
+            standard6 = re.compile("^(|HGF_)(IRCR|SNU|CHA|NCC|AMC)_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T|_T0[1-9])(_BR[1-9]|_BR[1-9]S[0-9])(|_P[0-9]{1,2}|_SP[0-9]{1,2})_(GS)+")
             standards = [standard1, standard2, standard3, standard4, standard5, standard6]
         elif self.type == "RSq":
             standard1 = re.compile("^IRCR_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(|_T0[1-9]|_T0[1-9]_P0)_(RSq)+")
@@ -154,32 +155,44 @@ class Inspector(object):
 
         for ref in standards:
             needToRename = list(filter(lambda x: ref.match(x) == None, matchingList)) + needToRename
+
         return needToRename
 
 
     def Renaming_Files(self):
         sampleNames = glob("%s/*" % (self.bam_dir))
-        unmatchedDirs = []
         unmatchedList = []
+
         ## At first, upper dir names are changed
         for sampleGroup in sampleNames:
             if sampleGroup.split(".")[-1] == "html":
+                ######## Html #####################
                 FirstFilter = sampleGroup.split("/")  # e.g : ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq.html']
                 SecondFilter = FirstFilter[-1]  # e.g : ['IRCR_BT16_1021_02_RSq.html']
-                ThirdFilter = self.Sample_naming_inspection([SecondFilter])  # e.g : ['IRCR_BT16_1021_02_RSq.html']
-                MasterLink1 = '%s%s.1.fq.gz'%(self.fastq_link, SecondFilter[:-5])# e.g : [/EQL2/SGI_20170718/RNASeq/fastq/link/IRCR_BT16_1021_02_RSq.1.fq.gz]
-                MasterLink2 = '%s%s.2.fq.gz'%(self.fastq_link, SecondFilter[:-5])
+                HTMLFilter = self.Sample_naming_inspection([SecondFilter])  # e.g :
+                HTMLFilter = list(set(HTMLFilter))
+                CorrectedHTML = self.correcting_naming_mistakes(HTMLFilter)
 
-                if len(ThirdFilter)!=0:
-                    unmatchedDirs.append(sampleGroup)  # e.g : ['/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq.html']
-                    unmatchedDirs.append(sampleGroup[:-5]) # e.g : [..., '/EQL8/pipeline/SGI20170718/IRCR_BT16_1021_02_RSq']
-                    unmatchedDirs.append(MasterLink1) 
-                    unmatchedDirs.append(MasterLink2)
+                ####### Link ######################
+                if len(HTMLFilter) == 1:
+                    OLD = "/".join(FirstFilter[:-1] + HTMLFilter)
+                    NEW = "/".join(FirstFilter[:-1] + CorrectedHTML)
+
+                    DIRFilter = HTMLFilter[0][:-5]
+                    print(DIRFilter)
+                    CorrectedName = CorrectedHTML[0][:-5]
+                    #os.path.join(os.getcwd(), self.fastq_link)
+                    OldLink1 = '%s%s.1.fq.gz' % (self.fastq_link, DIRFilter)
+                    OldLink2 = '%s%s.2.fq.gz' % (self.fastq_link, DIRFilter)
+                    NewLink1 = '%s%s.1.fq.gz' % (self.fastq_link, CorrectedName)
+                    NewLink2 = '%s%s.2.fq.gz' % (self.fastq_link, CorrectedName)
+                    print("old %s vs new %s" % (OldLink1, NewLink1))
+
+                    self.Rename(OLD, NEW)
+                    self.Rename(OldLink1, NewLink1)
+                    self.Rename(OldLink2, NewLink2)
             else:
                 continue
-        #unmatchedDirs = list(set(unmatchedDirs))
-        #print(unmatchedDirs)
-        #self.correcting_naming_mistakes(unmatchedDirs)
 
         ## Then, sub dir names and file names are changed
         for sampleGroup in sampleNames:
@@ -189,27 +202,61 @@ class Inspector(object):
             FirstFilter = list(map(methodcaller("split", "/"), matchingFiles)) # e.g : [['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1021_02_RSq', 'IRCR_BT16_1021_02_RSq_splice.bam'], ['', 'EQL8', 'pipeline', 'SGI20170718', 'IRCR_BT16_1141_RSq', 'IRCR_BT16_1141_RSq_splice.dedup.bai']]
             SecondFilter = list(map(lambda x: x[-1], FirstFilter)) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam', 'IRCR_BT16_1141_RSq_splice.dedup.bai']
             ThirdFilter = self.Sample_naming_inspection(SecondFilter) # e.g : ['IRCR_BT16_1021_02_RSq_splice.bam']
+            ThirdFilter = list(set(ThirdFilter))
+            CorretedFileNameList = self.correcting_naming_mistakes(ThirdFilter)
+            OLDFILES = list(map(lambda x: sampleGroup + '/' + x, ThirdFilter))
+            NEWFILES = list(map(lambda x: sampleGroup + '/' + x, CorretedFileNameList))
 
-            for matchingFile in matchingFiles:
-                if True in list(map(lambda x: x in matchingFile, ThirdFilter)):
-                    unmatchedList.append(matchingFile)
+            if len(OLDFILES) == len(NEWFILES):
+                for i in range(len(OLDFILES)):
+                    self.Rename(OLDFILES[i], NEWFILES[i])
 
-        unmatchedList = list(set(unmatchedList))
-        print(unmatchedList)
-        self.correcting_naming_mistakes(unmatchedList)
+            FourthFilter = sampleGroup.split("/")
+            FifthFilter = self.Sample_naming_inspection(FourthFilter[-1:])
+            NEWDIRList = self.correcting_naming_mistakes(FifthFilter)
+            FourthFilter[-1] = NEWDIRList[-1] 
+            self.Rename(sampleGroup, '/'.join(FourthFilter))
+
+
 
     def correcting_naming_mistakes(self, inputList):
+        outputList = []
         mistake1 = re.compile("^IRCR_([A-Z]{2,3})([0-9]{2})_([0-9]{3,4})(_0[1-9]|_0[1-9]_P0)_([A-Z]{2,3})+")
-        for NAME in inputList:
-            newNAME = NAME.replace("_0", "_T0")
-            print("and now changed into %s" % (newNAME))
-            os.system('mv %s %s' % (NAME, newNAME))
-            #if mistake1.match(NAME) != None:
-            #    print("%s is mistake1" %(NAME))
+        mistake2 = re.compile("^S([0-9]{2})([0-9]{5,})_(GS)+")
+        mistake3 = re.compile("^(|IRCR_)S([0-9]{2})_([0-9]{5,})_(GS)+")
 
-                #os.system('mv %s %s' % (PATH + NAME, PATH + newNAME))
-            #else:
-            #    print("%s is not mistake1" %(NAME))
+        for NAME in inputList:
+            if mistake1.match(NAME) != None:
+                newNAME = NAME.replace("_0", "_T0")
+            elif mistake2.match(NAME) != None:
+                newNAME = NAME.replace("_GS", "_T_GS")
+            elif mistake3.match(NAME) != None:
+                if "IRCR_S" in NAME:
+                    newNAME = NAME.replace("IRCR_S", "S")
+
+                Delimiter = "_GS"
+                newNAMEList = newNAME.split(Delimiter)
+                newNAMEList[0] = ''.join(newNAMEList[0].split("_"))
+                newNAME = Delimiter.join(newNAMEList)
+                if mistake2.match(newNAME) != None:
+                    newNAME = newNAME.replace("_GS", "_T_GS")
+            else:
+                newNAME = NAME
+            outputList.append(newNAME)
+        return outputList
+
+    def ReLink(self,toUnlink, newLink):
+        STDOUT = sp.check_output("ls -l %s" %(toUnlink), shell=True)
+        TargetPoint = str(STDOUT).split("->")[-1][1:-3]
+        sp.check_call("unlink %s" %(toUnlink))
+        sp.check_call("ln -s %s %s"%(TargetPoint, newLink), shell=True)
+
+
+    def Rename(self, A, B):
+        os.system('mv %s %s' % (A, B))
+        print("%s >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> \n %s " %(A, B))
+
+
 
     def read_DAT(self, isPAIR=True):
         VEP = GS_variant_effect_prediction()
@@ -276,9 +323,17 @@ class File_manager(object):
         print(cmd)
         os.system(cmd)
 
+    def move_whole_dir(self, FROM, TO):
+        sp.check_output(["cp" "-r", FROM, TO], stderr=sp.STDOUT, shell=True)
+
+
+
+
+
 
 if __name__=="__main__":
-    ins = Inspector("20170718", "RSq")
+    ins = Inspector("20170711", "GS")
     ins.Renaming_Files()
+    #ins.read_DAT()
     #mgr = File_manager()
     #mgr.from_EQL_to_Storage("RSq")
